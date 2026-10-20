@@ -1,0 +1,7 @@
+project_id = "channelora"
+
+[functions.sync-ical]
+verify_jwt = true
+
+[functions.publish-ical]
+verify_jwt = false

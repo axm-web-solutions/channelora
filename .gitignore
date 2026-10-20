@@ -1,0 +1,10 @@
+node_modules
+.dist
+dist
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.supabase
+.DS_Store
+.claude/settings.local.json
