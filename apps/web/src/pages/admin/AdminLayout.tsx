@@ -25,7 +25,7 @@ export function AdminLayout() {
 
   const tabs = TABS.map(({ to, label, icon: Icon }) =>
     <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-      <Icon size={18}/> {label}{to === 'reservas' && pending > 0 && <span className="nav-badge">{pending}</span>}
+      <Icon size={18}/> <span className="nav-label">{label}</span>{to === 'reservas' && pending > 0 && <span className="nav-badge">{pending}</span>}
     </NavLink>)
 
   return <div className="app-shell">

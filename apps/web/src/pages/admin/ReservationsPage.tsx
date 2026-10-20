@@ -7,6 +7,7 @@ import { CHANNEL_LABEL, REPORT_CHANNELS, channelKey, money } from '../../lib/rep
 import { ReservationDetail, STATUS_LABEL } from '../../components/ReservationDetail'
 import { bookingCode } from '../store/BookingConfirmation'
 import { PageHeader } from './AdminLayout'
+import { TableWrap } from '../../components/TableWrap'
 
 const shortDate = (d: string) => format(parseISO(d), 'd MMM yyyy', { locale: es })
 
@@ -42,7 +43,7 @@ export function ReservationsPage() {
           <label>Alojamiento<select value={propertyFilter} onChange={e => setPropertyFilter(e.target.value)}><option value="all">Todos</option>{data.properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <label>Buscar<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Huésped, correo o código"/></label>
         </div>
-        <div className="table-wrap"><table className="data-table">
+        <TableWrap><table className="data-table">
           <thead><tr><th>Código</th><th>Huésped</th><th>Alojamiento</th><th>Canal</th><th>Entrada</th><th>Salida</th><th className="num">Noches</th><th className="num">Valor</th><th>Estado</th></tr></thead>
           <tbody>{rows.map(r => <tr key={r.id} className={`clickable-row ${r.id === selectedId ? 'row-selected' : ''}`} onClick={() => setSelectedId(r.id)}>
             <td className="mono">{bookingCode(r.id)}</td>
@@ -53,7 +54,7 @@ export function ReservationsPage() {
             <td><span className={`status-badge status-${r.status}`}>{STATUS_LABEL[r.status]}</span></td>
           </tr>)}
           {!rows.length && <tr><td colSpan={9} className="empty">No hay reservas con estos filtros.</td></tr>}</tbody>
-        </table></div>
+        </table></TableWrap>
         <small className="hint">{rows.length} reserva(s) · clic en una fila para ver el detalle.</small>
       </section>
       {selectedId && <aside className="detail-drawer"><ReservationDetail key={selectedId} selection={{ kind: 'reservation', id: selectedId }} onClose={() => setSelectedId(null)}/></aside>}

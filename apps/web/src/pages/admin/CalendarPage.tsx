@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Ban, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Home, Plus } from 'lucide-react'
+import { Ban, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Home, Plus, X } from 'lucide-react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, parseISO, startOfMonth, startOfWeek, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useAppData, usePropertyName } from '../../context/AppData'
@@ -18,6 +18,7 @@ export function CalendarPage() {
   const [selected, setSelected] = useState<Selection | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const inScope = (id: string) => propertyFilter === 'all' || id === propertyFilter
   const visibleReservations = useMemo(() => reservations.filter(r => r.status !== 'cancelled' && (propertyFilter === 'all' || r.property_id === propertyFilter)), [reservations, propertyFilter])
@@ -29,12 +30,34 @@ export function CalendarPage() {
   const arrivals = visibleReservations.filter(r => r.check_in >= t).length
   const pending = visibleReservations.filter(r => r.status === 'tentative' && r.check_out > t).length
 
+  function dayItems(ds: string) {
+    return [
+      ...visibleReservations.filter(r => r.check_in <= ds && r.check_out > ds).map(r => ({
+        id: r.id, kind: 'reservation' as const, label: r.guest_name || CHANNEL_LABEL[channelKey(r)] || 'Reservado',
+        cls: `${r.source_type === 'direct' ? 'event-direct' : 'event-external'} ${r.status === 'tentative' ? 'event-tentative' : ''}`,
+        property: propertyName(r.property_id), detail: `${CHANNEL_LABEL[channelKey(r)] ?? r.source_name} · ${STATUS_LABEL[r.status]}`,
+      })),
+      ...visibleBlocks.filter(b => b.start_date <= ds && b.end_date > ds).map(b => ({
+        id: b.id, kind: 'block' as const, label: REASONS[b.reason], cls: 'event-block', property: propertyName(b.property_id), detail: 'Bloqueo',
+      })),
+    ]
+  }
+  function scrollTo(id: string) {
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0)
+  }
+  function openDay(ds: string) {
+    setSelectedDay(ds); setSelected(null); setShowForm(false); scrollTo('agenda-dia')
+  }
+  function openEvent(sel: Selection) {
+    setSelected(sel); setShowForm(false); scrollTo('detalle')
+  }
+
   function openForm(checkIn = '', kind: 'reservation' | 'block' = 'reservation') {
     const propertyId = propertyFilter !== 'all' ? propertyFilter : properties[0]?.id || ''
     const checkOut = checkIn ? format(addDays(parseISO(checkIn), 1), 'yyyy-MM-dd') : ''
     setForm({ ...emptyForm, kind, property_id: propertyId, check_in: checkIn, check_out: checkOut })
-    setShowForm(true); setSelected(null)
-    setTimeout(() => document.getElementById('registrar')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0)
+    setShowForm(true); setSelected(null); setSelectedDay(null)
+    scrollTo('registrar')
   }
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -59,27 +82,32 @@ export function CalendarPage() {
         <div className="calendar-toolbar"><select value={propertyFilter} onChange={e => setPropertyFilter(e.target.value)}><option value="all">Todos los alojamientos</option>{properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><div className="legend"><span><i className="legend-dot external"/> Plataforma</span><span><i className="legend-dot direct"/> Directa / web</span><span><i className="legend-dot block"/> Bloqueo</span></div></div>
         <div className="calendar-grid">{['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => <div className="weekday" key={d}>{d}</div>)}{monthDays.map(day => {
           const ds = format(day, 'yyyy-MM-dd')
-          const items = [
-            ...visibleReservations.filter(r => r.check_in <= ds && r.check_out > ds).map(r => ({
-              id: r.id, kind: 'reservation' as const, label: r.guest_name || CHANNEL_LABEL[channelKey(r)] || 'Reservado',
-              cls: `${r.source_type === 'direct' ? 'event-direct' : 'event-external'} ${r.status === 'tentative' ? 'event-tentative' : ''}`,
-              title: `${propertyName(r.property_id)} · ${r.guest_name || 'Reserva'} · ${CHANNEL_LABEL[channelKey(r)] ?? r.source_name} · ${STATUS_LABEL[r.status]}`,
-            })),
-            ...visibleBlocks.filter(b => b.start_date <= ds && b.end_date > ds).map(b => ({
-              id: b.id, kind: 'block' as const, label: REASONS[b.reason], cls: 'event-block', title: `${propertyName(b.property_id)} · ${REASONS[b.reason]}`,
-            })),
-          ]
-          return <div className={`day-cell clickable ${!isSameMonth(day, month) ? 'muted' : ''} ${isToday(day) ? 'today' : ''}`} key={ds} onClick={() => openForm(ds)} title="Clic para registrar desde este día">
+          const items = dayItems(ds)
+          return <div className={`day-cell clickable ${!isSameMonth(day, month) ? 'muted' : ''} ${isToday(day) ? 'today' : ''} ${selectedDay === ds ? 'selected-day' : ''}`} key={ds} onClick={() => openDay(ds)} title="Ver la agenda de este día">
             <span className="day-number">{format(day, 'd')}</span>
-            {items.slice(0, 2).map(it => <button type="button" key={it.id} title={it.title} className={`event ${it.cls}`} onClick={ev => { ev.stopPropagation(); setSelected({ kind: it.kind, id: it.id }); setShowForm(false) }}>{it.label}</button>)}
-            {items.length > 2 && <small>+{items.length - 2} más</small>}
+            {items.slice(0, 2).map(it => <button type="button" key={it.id} title={`${it.property} · ${it.label} · ${it.detail}`} aria-label={`${it.label}, ${it.property}`} className={`event ${it.cls}`} onClick={ev => { ev.stopPropagation(); openEvent({ kind: it.kind, id: it.id }) }}>{it.label}</button>)}
+            {items.length > 2 && <small>+{items.length - 2}</small>}
           </div>
         })}</div>
-        <div className="calendar-footer"><span><i className="legend-dot available"/> Clic en un día para registrar · clic en un evento para ver detalle</span><span>La fecha de salida no ocupa la noche de salida.</span></div>
+        <div className="calendar-footer"><span><i className="legend-dot available"/> Toca un día para ver su agenda y registrar · toca un evento para ver el detalle</span><span>La fecha de salida no ocupa la noche de salida.</span></div>
       </div>
 
       <div className="right-column">
-        {selected && <ReservationDetail key={selected.id} selection={selected} onClose={() => setSelected(null)}/>}
+        {selected && <div id="detalle"><ReservationDetail key={selected.id} selection={selected} onClose={() => setSelected(null)}/></div>}
+        {selectedDay && !selected && <section className="panel" id="agenda-dia">
+          <div className="panel-heading"><div><span className="eyebrow">AGENDA DEL DÍA</span><h2 className="capitalize">{format(parseISO(selectedDay), "EEEE d 'de' MMMM", { locale: es })}</h2></div><button className="icon-button" onClick={() => setSelectedDay(null)} aria-label="Cerrar agenda"><X size={16}/></button></div>
+          <div className="day-agenda">
+            {dayItems(selectedDay).map(it => <button type="button" key={it.id} className="day-agenda-row" onClick={() => openEvent({ kind: it.kind, id: it.id })}>
+              <i className={`agenda-bar ${it.cls}`}/>
+              <div><strong>{it.label}</strong><small>{it.property} · {it.detail}</small></div>
+            </button>)}
+            {!dayItems(selectedDay).length && <p className="empty">Sin reservas ni bloqueos esta noche.</p>}
+          </div>
+          <div className="two-fields full">
+            <button className="button primary" onClick={() => openForm(selectedDay, 'reservation')}><Plus size={16}/> Reserva aquí</button>
+            <button className="button secondary" onClick={() => openForm(selectedDay, 'block')}><Ban size={15}/> Bloquear</button>
+          </div>
+        </section>}
         <section className="panel" id="registrar"><div className="panel-heading"><div><span className="eyebrow">ACCIÓN RÁPIDA</span><h2>Registrar</h2></div><div className="round-icon"><Plus size={18}/></div></div>
           <p className="muted-copy">Registra una reserva que llegó por teléfono o WhatsApp, o bloquea fechas por mantenimiento o uso propio.</p>
           {!showForm && <div className="two-fields full">

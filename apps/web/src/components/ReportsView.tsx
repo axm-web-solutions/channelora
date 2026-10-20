@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CircleAlert, Download, HandCoins, Moon, Percent, Wallet } from 'lucide-react'
 import { addDays, format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CHANNEL_LABEL, adr, buildReport, feeRate, money, percent, presetPeriod, reportCSV, type Period, type PeriodPreset } from '../lib/reports'
 import { STATUS_LABEL } from './ReservationDetail'
 import type { Property, Reservation } from '../types'
+import { TableWrap } from './TableWrap'
 
 type Props = {
   reservations: Reservation[]; properties: Property[]; selectedProperty: string
@@ -21,6 +22,8 @@ export function ReportsView({ reservations, properties, selectedProperty, onSele
   const report = useMemo(() => buildReport(reservations, properties, period, selectedProperty), [reservations, properties, period, selectedProperty])
   const { total, rows, byProperty, byChannel, matrix, occupancy, channels, scope } = report
   const lastDay = shift(period.to, -1)
+  const [limit, setLimit] = useState(15)
+  useEffect(() => setLimit(15), [period, selectedProperty])
 
   function choosePreset(p: PeriodPreset) {
     setPreset(p)
@@ -64,7 +67,7 @@ export function ReportsView({ reservations, properties, selectedProperty, onSele
 
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">POR ALOJAMIENTO</span><h2>¿Cuánto generó cada alojamiento?</h2></div></div>
-      <div className="table-wrap"><table className="data-table">
+      <TableWrap><table className="data-table">
         <thead><tr><th>Alojamiento</th><th className="num">Reservas</th><th className="num">Noches</th><th className="num">Ocupación</th><th className="num">Bruto</th><th className="num">Comisión</th><th className="num">Neto</th><th className="num">Tarifa media</th></tr></thead>
         <tbody>{scope.map(p => { const t = byProperty.get(p.id)!; return <tr key={p.id}>
           <td><strong>{p.name}</strong>{t.missing > 0 && <small className="missing-cell"> · {t.missing} sin valor</small>}</td>
@@ -72,12 +75,12 @@ export function ReportsView({ reservations, properties, selectedProperty, onSele
           <td className="num">{money(t.gross)}</td><td className="num">{money(t.fee)}</td><td className="num"><strong>{money(t.net)}</strong></td><td className="num">{money(adr(t))}</td>
         </tr> })}</tbody>
         <tfoot><tr><td>Total</td><td className="num">{total.count}</td><td className="num">{total.nights}</td><td/><td className="num">{money(total.gross)}</td><td className="num">{money(total.fee)}</td><td className="num">{money(total.net)}</td><td className="num">{money(adr(total))}</td></tr></tfoot>
-      </table></div>
+      </table></TableWrap>
     </section>
 
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">POR PLATAFORMA</span><h2>¿Cuánto deja cada canal?</h2></div></div>
-      <div className="table-wrap"><table className="data-table">
+      <TableWrap><table className="data-table">
         <thead><tr><th>Plataforma</th><th className="num">Reservas</th><th className="num">Noches</th><th className="num">Bruto</th><th className="num">Comisión</th><th className="num">% comisión</th><th className="num">Neto</th><th className="num">Tarifa media</th><th className="num">Neto por noche</th></tr></thead>
         <tbody>{channels.map(c => { const t = byChannel.get(c)!; return <tr key={c}>
           <td><strong>{CHANNEL_LABEL[c] ?? c}</strong>{t.missing > 0 && <small className="missing-cell"> · {t.missing} sin valor</small>}</td>
@@ -86,33 +89,34 @@ export function ReportsView({ reservations, properties, selectedProperty, onSele
           <td className="num">{t.pricedNights ? money(t.net / t.pricedNights) : '—'}</td>
         </tr> })}
         {!channels.length && <tr><td colSpan={9} className="empty">Sin reservas en el periodo.</td></tr>}</tbody>
-      </table></div>
+      </table></TableWrap>
     </section>
 
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">ALOJAMIENTO × PLATAFORMA</span><h2>Tarifa media por noche en cada canal</h2></div></div>
-      <div className="table-wrap"><table className="data-table matrix">
+      <TableWrap><table className="data-table matrix">
         <thead><tr><th>Alojamiento</th>{channels.map(c => <th key={c} className="num">{CHANNEL_LABEL[c] ?? c}</th>)}</tr></thead>
         <tbody>{scope.map(p => <tr key={p.id}><td><strong>{p.name}</strong></td>{channels.map(c => {
           const t = matrix.get(`${p.id}|${c}`)
           return <td key={c} className="num">{t ? <><strong>{money(adr(t))}</strong><small>{t.nights} noche(s) · {money(t.gross)}</small></> : '—'}</td>
         })}</tr>)}</tbody>
-      </table></div>
+      </table></TableWrap>
     </section>
 
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">DETALLE</span><h2>Reservas del periodo</h2></div><small className="muted-copy">{rows.length} registro(s)</small></div>
-      <div className="table-wrap"><table className="data-table">
+      <TableWrap><table className="data-table">
         <thead><tr><th>Entrada</th><th>Alojamiento</th><th>Plataforma</th><th>Huésped</th><th className="num">Noches</th><th className="num">Bruto</th><th className="num">Comisión</th><th className="num">Neto</th><th/></tr></thead>
-        <tbody>{rows.map(r => <tr key={r.id} className={r.id === selectedId ? 'row-selected' : ''}>
+        <tbody>{rows.slice(0, limit).map(r => <tr key={r.id} className={r.id === selectedId ? 'row-selected' : ''}>
           <td>{shortDate(r.check_in)}</td><td>{propertyName(r.property_id)}</td><td>{CHANNEL_LABEL[r.channel] ?? r.channel}</td>
-          <td>{r.guest_name || <span className="muted-copy">{STATUS_LABEL[r.status]}</span>}</td><td className="num">{r.nights}</td>
+          <td>{r.guest_name || <span className="muted-copy">Huésped de {CHANNEL_LABEL[r.channel] ?? r.channel}</span>}</td><td className="num">{r.nights}</td>
           <td className="num">{r.gross_amount == null ? <span className="missing-cell">Sin valor</span> : money(r.gross_amount)}</td>
           <td className="num">{money(r.platform_fee)}</td><td className="num">{money(r.net)}</td>
           <td className="num"><button className={`button ${r.gross_amount == null ? 'primary' : 'secondary'} small`} onClick={() => onOpenReservation(r.id)}>{r.gross_amount == null ? 'Completar' : 'Ver'}</button></td>
         </tr>)}
         {!rows.length && <tr><td colSpan={9} className="empty">Sin reservas en el periodo.</td></tr>}</tbody>
-      </table></div>
+      </table></TableWrap>
+      {rows.length > limit && <button className="button secondary full" onClick={() => setLimit(limit + 15)}>Mostrar más ({rows.length - limit} restantes)</button>}
     </section>
   </div>
 }
